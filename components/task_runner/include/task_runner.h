@@ -12,28 +12,15 @@
 
 #include <stdbool.h>
 
+typedef struct task_runner *task_runner_handle_t;
 typedef void (*task_callback_t)(void *);
 
-typedef struct task
-{
-    task_callback_t callback;
-    void *arg;
-} task_t;
+task_runner_handle_t task_runner_create(void);
 
-typedef struct task_runner
-{
-    task_t *tasks;
-    uint32_t size;
-    uint32_t count;
-    bool is_running;
-} task_runner_t;
+void task_runner_delete(task_runner_handle_t runner);
 
-void task_runner_init(task_runner_t* runner);
+void task_runner_add(task_runner_handle_t runner,task_callback_t callback, void *arg);
 
-void task_runner_deinit(task_runner_t* runner);
+void task_runner_start(task_runner_handle_t runner);
 
-void task_runner_add(task_runner_t* runner,task_callback_t callback, void *arg);
-
-void task_runner_start(task_runner_t* runner);
-
-void task_runner_stop(task_runner_t* runner);
+void task_runner_stop(task_runner_handle_t runner);
