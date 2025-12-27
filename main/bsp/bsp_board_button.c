@@ -20,4 +20,6 @@ void bsp_board_button_init(bsp_board_t *bsp_board)
     adc_config.min = 1600;
     adc_config.max = 1700;
     ESP_ERROR_CHECK(iot_button_new_adc_device(&button_config, &adc_config, &bsp_board->sw3));
+
+    xEventGroupSetBits(bsp_board->board_status, BUTTON_BIT);
 }

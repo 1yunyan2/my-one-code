@@ -37,6 +37,16 @@ void app_main(void)
     iot_button_register_cb(bsp_board->sw2, BUTTON_SINGLE_CLICK, NULL, button_cb, NULL);
     iot_button_register_cb(bsp_board->sw2, BUTTON_DOUBLE_CLICK, NULL, button_cb, NULL);
 
+    bsp_board_nvs_init(bsp_board);
+    bsp_board_wifi_init(bsp_board);
+
+    bool ret = bsp_board_check_status(bsp_board, WIFI_BIT, pdMS_TO_TICKS(30000));
+    if (!ret)
+    {
+        ESP_LOGE(TAG, "wifi init failed");
+    }
+    
+
     bsp_board_led_indicator_set_blink_type(bsp_board, LED_BLINK_TYPE_BREATH);
     vTaskDelay(pdMS_TO_TICKS(10000));
     bsp_board_led_indicator_set_blink_type(bsp_board, LED_BLINK_TYPE_TRANSITION);

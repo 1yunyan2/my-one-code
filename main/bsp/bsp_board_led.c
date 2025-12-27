@@ -49,6 +49,7 @@ void bsp_board_led_indicator_init(bsp_board_t *bsp_board)
         &bsp_board->led_indicator);
 
     ESP_ERROR_CHECK(ret);
+    xEventGroupSetBits(bsp_board->board_status, LED_BIT);
 }
 
 void bsp_board_led_indicator_set_blink_type(bsp_board_t *bsp_board, bsp_board_led_blink_type_t blink_type)
