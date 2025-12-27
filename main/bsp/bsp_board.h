@@ -38,6 +38,8 @@ void bsp_board_button_init(bsp_board_t *bsp_board);
 
 void bsp_board_wifi_init(bsp_board_t *bsp_board);
 
+void bsp_board_wifi_reset_provisioning(bsp_board_t *bsp_board);
+
 void bsp_board_nvs_init(bsp_board_t *bsp_board);
 
 /* 检查特定标志位，如果所有检查的位都成功，返回true，否则返回false */

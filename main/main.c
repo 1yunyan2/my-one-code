@@ -22,6 +22,9 @@ void button_cb(void *button_handle, void *usr_data)
         case BUTTON_DOUBLE_CLICK:
             ESP_LOGI(TAG, "sw2 double click");
             break;
+        case BUTTON_LONG_PRESS_START:
+            bsp_board_wifi_reset_provisioning(bsp_board);
+            break;
         default:
             break;
         }
@@ -36,6 +39,7 @@ void app_main(void)
 
     iot_button_register_cb(bsp_board->sw2, BUTTON_SINGLE_CLICK, NULL, button_cb, NULL);
     iot_button_register_cb(bsp_board->sw2, BUTTON_DOUBLE_CLICK, NULL, button_cb, NULL);
+    iot_button_register_cb(bsp_board->sw2, BUTTON_LONG_PRESS_START, NULL, button_cb, NULL);
 
     bsp_board_nvs_init(bsp_board);
     bsp_board_wifi_init(bsp_board);
@@ -45,7 +49,6 @@ void app_main(void)
     {
         ESP_LOGE(TAG, "wifi init failed");
     }
-    
 
     bsp_board_led_indicator_set_blink_type(bsp_board, LED_BLINK_TYPE_BREATH);
     vTaskDelay(pdMS_TO_TICKS(10000));

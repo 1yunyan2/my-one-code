@@ -1,6 +1,8 @@
 #include "bsp_board.h"
 #include "esp_wifi.h"
 #include "esp_log.h"
+#include "wifi_provisioning/manager.h"
+#include "wifi_provisioning/scheme_ble.h"
 
 #define TAG "[BSP] WiFi"
 
@@ -19,6 +21,10 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
         xEventGroupSetBits(board->board_status, WIFI_BIT);
+    }
+    else if (event_base == WIFI_PROV_EVENT && event_id == WIFI_PROV_END)
+    {
+        wifi_prov_mgr_deinit();
     }
 }
 
@@ -40,6 +46,7 @@ void bsp_board_wifi_init(bsp_board_t *bsp_board)
 
     esp_event_handler_instance_t instance_any_id;
     esp_event_handler_instance_t instance_got_ip;
+    esp_event_handler_instance_t instance_prov_end;
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                         ESP_EVENT_ANY_ID,
                                                         &event_handler,
@@ -50,14 +57,53 @@ void bsp_board_wifi_init(bsp_board_t *bsp_board)
                                                         &event_handler,
                                                         NULL,
                                                         &instance_got_ip));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_PROV_EVENT,
+                                                        WIFI_PROV_END,
+                                                        &event_handler,
+                                                        NULL,
+                                                        &instance_prov_end));
+    /** 初始化provisioning manager */
+    wifi_prov_mgr_config_t prov_config = {
+        .scheme = wifi_prov_scheme_ble,
+        .scheme_event_handler = WIFI_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BTDM};
+    ESP_ERROR_CHECK(wifi_prov_mgr_init(prov_config));
 
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = "atguigu",
-            .password = "aqswdefr",
-        },
-    };
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    /* 检查是否配过网 */
+    bool provisioned = false;
+    ESP_ERROR_CHECK(wifi_prov_mgr_is_provisioned(&provisioned));
+
+    if (!provisioned)
+    {
+        // 尝试配网
+        // 加密密钥
+        const char *security_key = "abcd1234";
+
+        // 设备蓝牙名称
+        uint8_t mac[6];
+        ESP_ERROR_CHECK(esp_wifi_get_mac(WIFI_IF_STA, mac));
+        char service_name[15];
+        snprintf(service_name, 15, "XIAOZHI-%02X%02X%02X", mac[3], mac[4], mac[5]);
+
+        ESP_ERROR_CHECK(wifi_prov_mgr_start_provisioning(WIFI_PROV_SECURITY_1, (const void *)security_key, service_name, NULL));
+
+        // 生成二维码
+        char payload[150] = {0};
+        snprintf(payload, sizeof(payload), "{\"ver\":\"v1\",\"name\":\"%s\""
+                                           ",\"pop\":\"%s\",\"transport\":\"ble\"}",
+                 service_name, security_key);
+        ESP_LOGI(TAG, "QR code: %s", payload);
+    }
+    else
+    {
+        wifi_prov_mgr_deinit();
+        // 直接连接
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        ESP_ERROR_CHECK(esp_wifi_start());
+    }
+}
+
+void bsp_board_wifi_reset_provisioning(bsp_board_t *bsp_board)
+{
+    wifi_prov_mgr_reset_provisioning();
+    esp_restart();
 }
