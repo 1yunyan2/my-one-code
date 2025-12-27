@@ -2,6 +2,7 @@
 
 #include "bsp_config.h"
 #include "led_indicator.h"
+#include "iot_button.h"
 
 typedef enum
 {
@@ -15,6 +16,8 @@ typedef struct
 {
     led_indicator_handle_t led_indicator;
     bsp_board_led_blink_type_t blink_type;
+    button_handle_t sw2;
+    button_handle_t sw3;
 } bsp_board_t;
 
 bsp_board_t *bsp_board_get_instance(void);
@@ -22,3 +25,5 @@ bsp_board_t *bsp_board_get_instance(void);
 void bsp_board_led_indicator_init(bsp_board_t *bsp_board);
 
 void bsp_board_led_indicator_set_blink_type(bsp_board_t *bsp_board, bsp_board_led_blink_type_t blink_type);
+
+void bsp_board_button_init(bsp_board_t *bsp_board);
