@@ -5,11 +5,13 @@
 #include "iot_button.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "esp_codec_dev.h"
 
 #define LED_BIT BIT0
 #define BUTTON_BIT BIT1
 #define WIFI_BIT BIT2
 #define NVS_BIT BIT3
+#define CODEC_BIT BIT4
 
 typedef enum
 {
@@ -26,6 +28,9 @@ typedef struct
     bsp_board_led_blink_type_t blink_type;
     button_handle_t sw2;
     button_handle_t sw3;
+
+    // 音频设备
+    esp_codec_dev_handle_t codec_dev;
 } bsp_board_t;
 
 bsp_board_t *bsp_board_get_instance(void);
@@ -41,6 +46,8 @@ void bsp_board_wifi_init(bsp_board_t *bsp_board);
 void bsp_board_wifi_reset_provisioning(bsp_board_t *bsp_board);
 
 void bsp_board_nvs_init(bsp_board_t *bsp_board);
+
+void bsp_board_codec_init(bsp_board_t *bsp_board);
 
 /* 检查特定标志位，如果所有检查的位都成功，返回true，否则返回false */
 bool bsp_board_check_status(bsp_board_t *bsp_board, EventBits_t bits_to_check, TickType_t wait_ticks);

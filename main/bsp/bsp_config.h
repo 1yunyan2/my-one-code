@@ -1,3 +1,14 @@
 #pragma once
 
 #define BSP_LED_PIN 46
+
+#define BSP_CODEC_PA_PIN 7
+#define BSP_CODEC_SCL_PIN 1
+#define BSP_CODEC_SDA_PIN 0
+#define BSP_CODEC_MCLK_PIN 3
+#define BSP_CODEC_BCLK_PIN 2
+#define BSP_CODEC_WS_PIN 5
+#define BSP_CODEC_DIN_PIN 4
+#define BSP_CODEC_DOUT_PIN 6
+#define BSP_CODEC_SAMPLE_RATE 16000
+#define BSP_CODEC_BITS_PER_SAMPLE 16

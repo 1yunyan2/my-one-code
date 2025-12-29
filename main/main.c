@@ -43,12 +43,31 @@ void app_main(void)
 
     bsp_board_nvs_init(bsp_board);
     bsp_board_wifi_init(bsp_board);
+    bsp_board_codec_init(bsp_board);
+
+    // 打开音频设备
+    esp_codec_dev_set_out_vol(bsp_board->codec_dev, 60);
+    esp_codec_dev_set_in_gain(bsp_board->codec_dev, 10);
+    esp_codec_dev_sample_info_t sample_info = {
+        .sample_rate = BSP_CODEC_SAMPLE_RATE,
+        .bits_per_sample = BSP_CODEC_BITS_PER_SAMPLE,
+        .channel = 1,
+    };
+    esp_codec_dev_open(bsp_board->codec_dev, &sample_info);
 
     bool ret = bsp_board_check_status(bsp_board, WIFI_BIT, pdMS_TO_TICKS(30000));
     if (!ret)
     {
         ESP_LOGE(TAG, "wifi init failed");
     }
+
+    uint8_t* buf = malloc(1024);
+    while (1)
+    {
+        esp_codec_dev_read(bsp_board->codec_dev, buf, 1024);
+        esp_codec_dev_write(bsp_board->codec_dev, buf, 1024);
+    }
+    
 
     bsp_board_led_indicator_set_blink_type(bsp_board, LED_BLINK_TYPE_BREATH);
     vTaskDelay(pdMS_TO_TICKS(10000));
