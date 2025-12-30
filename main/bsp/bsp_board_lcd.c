@@ -1,5 +1,7 @@
 #include "bsp_board.h"
 #include "driver/gpio.h"
+#include "esp_lcd_panel_ops.h"
+#include "esp_lcd_panel_vendor.h"
 
 void bsp_board_lcd_init(bsp_board_t *bsp_board)
 {
