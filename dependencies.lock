@@ -23,6 +23,44 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 1.1.1
+  espressif/dl_fft:
+    component_hash: 7dadbd644c0d7ba4733cc3726ec4cff6edf27b043725e1115861dec1609a3d28
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.3.1
+  espressif/esp-dsp:
+    component_hash: 42dce32d46ac93dc11f60d368e29a830e9661c7345d794b8a45c343479cae636
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.2'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.7.0
+  espressif/esp-sr:
+    component_hash: 1158509d88b59134ca880ecf87388b0eacceff6fe6b6b27fd5f1a563d6cfc50b
+    dependencies:
+    - name: espressif/dl_fft
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=0.2.0'
+    - name: espressif/esp-dsp
+      registry_url: https://components.espressif.com
+      require: private
+      version: 1.7.0
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 2.3.0
   espressif/esp_audio_codec:
     component_hash: 61820034357c5d423a5cf5d2419153ade8a7037783d95fa3df0d2257908e7e1d
     dependencies:
@@ -77,10 +115,11 @@ dependencies:
     version: 5.4.2
 direct_dependencies:
 - espressif/button
+- espressif/esp-sr
 - espressif/esp_audio_codec
 - espressif/esp_codec_dev
 - espressif/led_indicator
 - idf
-manifest_hash: 36f37e3608e7d62271d56e7d41bcf5d94bf01f76cb0415f15f3072af2c8fdb27
+manifest_hash: b7a3b98796c9eaf9deb39db055b0142daa4f00289e73a1827453f5f7a5fcd3a5
 target: esp32s3
 version: 2.0.0
