@@ -71,6 +71,10 @@ void bsp_board_wifi_init(bsp_board_t *bsp_board)
     /* 检查是否配过网 */
     bool provisioned = false;
     ESP_ERROR_CHECK(wifi_prov_mgr_is_provisioned(&provisioned));
+    uint8_t mac[6];
+    ESP_ERROR_CHECK(esp_wifi_get_mac(WIFI_IF_STA, mac));
+    snprintf(bsp_board->mac_addr, 18, "%02x:%02x:%02x:%02x:%02x:%02x",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     if (!provisioned)
     {
@@ -79,8 +83,6 @@ void bsp_board_wifi_init(bsp_board_t *bsp_board)
         const char *security_key = "abcd1234";
 
         // 设备蓝牙名称
-        uint8_t mac[6];
-        ESP_ERROR_CHECK(esp_wifi_get_mac(WIFI_IF_STA, mac));
         char service_name[15];
         snprintf(service_name, 15, "XIAOZHI-%02X%02X%02X", mac[3], mac[4], mac[5]);
 
