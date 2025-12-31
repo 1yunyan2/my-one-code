@@ -2,9 +2,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "bsp/bsp_board.h"
-#include "audio/audio_encoder.h"
-#include "audio/audio_decoder.h"
-#include "audio/audio_sr.h"
 #include "audio/audio_processor.h"
 #include "esp_log.h"
 
@@ -15,12 +12,12 @@ void audio_sr_event_cb(void *event_handler_arg,
                        int32_t event_id,
                        void *event_data)
 {
-    audio_sr_t *audio_sr = (audio_sr_t *)event_handler_arg;
+    audio_processor_t *audio_processor = (audio_processor_t *)event_handler_arg;
     switch (event_id)
     {
     case AUDIO_PROCESSOR_EVENT_WAKEUP:
         ESP_LOGI(TAG, "Wakeup");
-        audio_sr_set_vad_state(audio_sr, true);
+        audio_processor_set_vad_state(audio_processor, true);
         break;
     case AUDIO_PROCESSOR_EVENT_SPEECH:
         ESP_LOGI(TAG, "Speech");
@@ -60,21 +57,19 @@ void button_cb(void *button_handle, void *usr_data)
     }
 }
 
-static void output_task(void *arg)
+void heap_monitor_task(void *arg)
 {
-    RingbufHandle_t output_buffer = (RingbufHandle_t)arg;
-    bsp_board_t *board = bsp_board_get_instance();
     while (1)
     {
-        size_t size_read = 0;
-        void *buf = xRingbufferReceiveUpTo(output_buffer, &size_read, portMAX_DELAY, 1024);
-        esp_codec_dev_write(board->codec_dev, buf, size_read);
-        vRingbufferReturnItem(output_buffer, buf);
+        uint32_t heap_size = esp_get_free_internal_heap_size();
+        ESP_LOGE(TAG, "heap size: %lu", heap_size);
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
 void app_main(void)
 {
+    xTaskCreate(heap_monitor_task, "heap_monitor_task", 4096, NULL, 5, NULL);
     bsp_board_t *bsp_board = bsp_board_get_instance();
     bsp_board_led_indicator_init(bsp_board);
     bsp_board_button_init(bsp_board);
@@ -103,38 +98,14 @@ void app_main(void)
         ESP_LOGE(TAG, "wifi init failed");
     }
 
-    RingbufHandle_t input_buffer = xRingbufferCreate(16384, RINGBUF_TYPE_BYTEBUF);
-    RingbufHandle_t mid_buffer = xRingbufferCreate(2048, RINGBUF_TYPE_NOSPLIT);
-    RingbufHandle_t output_buffer = xRingbufferCreate(16384, RINGBUF_TYPE_BYTEBUF);
+    audio_processor_t *audio_processor = audio_processor_create();
+    audio_processor_register_event_cb(audio_processor, audio_sr_event_cb, audio_processor);
+    audio_processor_start(audio_processor);
 
-    audio_sr_t *audio_sr = audio_sr_create();
-    audio_sr_set_output_buffer(audio_sr, input_buffer);
-
-    audio_encoder_t *audio_encoder = audio_encoder_create(BSP_CODEC_SAMPLE_RATE, 1);
-    audio_encoder_set_buffer(audio_encoder, input_buffer, mid_buffer);
-
-    audio_decoder_t *audio_decoder = audio_decoder_create(BSP_CODEC_SAMPLE_RATE, 2);
-    audio_decoder_set_buffer(audio_decoder, mid_buffer, output_buffer);
-
-    audio_sr_register_event_cb(audio_sr, audio_sr_event_cb, audio_sr);
-
-    audio_sr_start(audio_sr);
-    audio_encoder_start(audio_encoder);
-    audio_decoder_start(audio_decoder);
-
-    xTaskCreate(output_task, "output_task", 4096, output_buffer, 5, NULL);
-
-    bsp_board_led_indicator_set_blink_type(bsp_board, LED_BLINK_TYPE_BREATH);
-    vTaskDelay(pdMS_TO_TICKS(10000));
-    bsp_board_led_indicator_set_blink_type(bsp_board, LED_BLINK_TYPE_TRANSITION);
-    vTaskDelay(pdMS_TO_TICKS(10000));
-    bsp_board_led_indicator_set_blink_type(bsp_board, LED_BLINK_TYPE_OFF);
-
+    void *buffer = malloc(1024);
     while (1)
     {
-        uint32_t heap_size = esp_get_free_internal_heap_size();
-        ESP_LOGI(TAG, "heap size: %lu", heap_size);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        size_t size_read = audio_processor_read(audio_processor, buffer, 1024);
+        audio_processor_write(audio_processor, buffer, size_read);
     }
-    
 }
