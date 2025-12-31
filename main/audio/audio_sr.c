@@ -4,10 +4,10 @@
 #include "bsp/bsp_board.h"
 #include "audio_processor.h"
 
-#define FEED_TASK_CORE_ID 0
+#define FEED_TASK_CORE_ID 1
 #define FEED_TASK_STACK_SIZE 4096
 #define FEED_TASK_PRIORITY 5
-#define FETCH_TASK_CORE_ID 0
+#define FETCH_TASK_CORE_ID 1
 #define FETCH_TASK_STACK_SIZE 4096
 #define FETCH_TASK_PRIORITY 5
 
@@ -95,6 +95,7 @@ audio_sr_t *audio_sr_create(void)
     srmodel_list_t *models = esp_srmodel_init("model");
     afe_config_t *afe_config = afe_config_init("MR", models, AFE_TYPE_SR, AFE_MODE_HIGH_PERF);
 
+    afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
     // 获取句柄
     sr->afe_handle = esp_afe_handle_from_config(afe_config);
     // 创建实例

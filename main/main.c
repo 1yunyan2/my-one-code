@@ -4,9 +4,36 @@
 #include "bsp/bsp_board.h"
 #include "audio/audio_encoder.h"
 #include "audio/audio_decoder.h"
+#include "audio/audio_sr.h"
+#include "audio/audio_processor.h"
 #include "esp_log.h"
 
 #define TAG "main"
+
+void audio_sr_event_cb(void *event_handler_arg,
+                       esp_event_base_t event_base,
+                       int32_t event_id,
+                       void *event_data)
+{
+    audio_sr_t *audio_sr = (audio_sr_t *)event_handler_arg;
+    switch (event_id)
+    {
+    case AUDIO_PROCESSOR_EVENT_WAKEUP:
+        ESP_LOGI(TAG, "Wakeup");
+        audio_sr_set_vad_state(audio_sr, true);
+        break;
+    case AUDIO_PROCESSOR_EVENT_SPEECH:
+        ESP_LOGI(TAG, "Speech");
+        /* code */
+        break;
+    case AUDIO_PROCESSOR_EVENT_SILENCE:
+        ESP_LOGI(TAG, "Silence");
+        /* code */
+        break;
+    default:
+        break;
+    }
+}
 
 void button_cb(void *button_handle, void *usr_data)
 {
@@ -33,18 +60,6 @@ void button_cb(void *button_handle, void *usr_data)
     }
 }
 
-static void input_task(void *arg)
-{
-    RingbufHandle_t input_buffer = (RingbufHandle_t)arg;
-    bsp_board_t *board = bsp_board_get_instance();
-    void *buf = malloc(1024);
-    while (1)
-    {
-        esp_codec_dev_read(board->codec_dev, buf, 1024);
-        xRingbufferSend(input_buffer, buf, 1024, portMAX_DELAY);
-    }
-}
-
 static void output_task(void *arg)
 {
     RingbufHandle_t output_buffer = (RingbufHandle_t)arg;
@@ -56,7 +71,6 @@ static void output_task(void *arg)
         esp_codec_dev_write(board->codec_dev, buf, size_read);
         vRingbufferReturnItem(output_buffer, buf);
     }
-    
 }
 
 void app_main(void)
@@ -74,12 +88,12 @@ void app_main(void)
     bsp_board_codec_init(bsp_board);
 
     // 打开音频设备
-    esp_codec_dev_set_out_vol(bsp_board->codec_dev, 60);
-    esp_codec_dev_set_in_gain(bsp_board->codec_dev, 10);
+    esp_codec_dev_set_out_vol(bsp_board->codec_dev, 80);
+    esp_codec_dev_set_in_gain(bsp_board->codec_dev, 20);
     esp_codec_dev_sample_info_t sample_info = {
         .sample_rate = BSP_CODEC_SAMPLE_RATE,
         .bits_per_sample = BSP_CODEC_BITS_PER_SAMPLE,
-        .channel = 1,
+        .channel = 2,
     };
     esp_codec_dev_open(bsp_board->codec_dev, &sample_info);
 
@@ -91,18 +105,23 @@ void app_main(void)
 
     RingbufHandle_t input_buffer = xRingbufferCreate(16384, RINGBUF_TYPE_BYTEBUF);
     RingbufHandle_t mid_buffer = xRingbufferCreate(2048, RINGBUF_TYPE_NOSPLIT);
-    RingbufHandle_t output_buffer = xRingbufferCreate(2048, RINGBUF_TYPE_BYTEBUF);
+    RingbufHandle_t output_buffer = xRingbufferCreate(16384, RINGBUF_TYPE_BYTEBUF);
+
+    audio_sr_t *audio_sr = audio_sr_create();
+    audio_sr_set_output_buffer(audio_sr, input_buffer);
 
     audio_encoder_t *audio_encoder = audio_encoder_create(BSP_CODEC_SAMPLE_RATE, 1);
     audio_encoder_set_buffer(audio_encoder, input_buffer, mid_buffer);
 
-    audio_decoder_t *audio_decoder = audio_decoder_create(BSP_CODEC_SAMPLE_RATE, 1);
+    audio_decoder_t *audio_decoder = audio_decoder_create(BSP_CODEC_SAMPLE_RATE, 2);
     audio_decoder_set_buffer(audio_decoder, mid_buffer, output_buffer);
 
+    audio_sr_register_event_cb(audio_sr, audio_sr_event_cb, audio_sr);
+
+    audio_sr_start(audio_sr);
     audio_encoder_start(audio_encoder);
     audio_decoder_start(audio_decoder);
 
-    xTaskCreate(input_task, "input_task", 4096, input_buffer, 5, NULL);
     xTaskCreate(output_task, "output_task", 4096, output_buffer, 5, NULL);
 
     bsp_board_led_indicator_set_blink_type(bsp_board, LED_BLINK_TYPE_BREATH);
@@ -110,4 +129,12 @@ void app_main(void)
     bsp_board_led_indicator_set_blink_type(bsp_board, LED_BLINK_TYPE_TRANSITION);
     vTaskDelay(pdMS_TO_TICKS(10000));
     bsp_board_led_indicator_set_blink_type(bsp_board, LED_BLINK_TYPE_OFF);
+
+    while (1)
+    {
+        uint32_t heap_size = esp_get_free_internal_heap_size();
+        ESP_LOGI(TAG, "heap size: %lu", heap_size);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    
 }
