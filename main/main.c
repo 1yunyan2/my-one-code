@@ -4,6 +4,7 @@
 #include "bsp/bsp_board.h"
 #include "audio/audio_processor.h"
 #include "esp_log.h"
+#include "protocol/ota.h"
 
 #define TAG "main"
 
@@ -92,11 +93,30 @@ void app_main(void)
     };
     esp_codec_dev_open(bsp_board->codec_dev, &sample_info);
 
-    bool ret = bsp_board_check_status(bsp_board, WIFI_BIT, pdMS_TO_TICKS(30000));
+    bool ret = bsp_board_check_status(bsp_board, WIFI_BIT, portMAX_DELAY);
     if (!ret)
     {
         ESP_LOGE(TAG, "wifi init failed");
     }
+
+    ota_t *ota = ota_create();
+
+    ota_perform(ota);
+
+    if (ota->activation_code)
+    {
+        ESP_LOGI(TAG, "activation code: %s", ota->activation_code);
+    }
+    if (ota->websocket_url)
+    {
+        ESP_LOGI(TAG, "websocket url: %s", ota->websocket_url);
+    }
+    if (ota->websocket_token)
+    {
+        ESP_LOGI(TAG, "websocket token: %s", ota->websocket_token);
+    }
+
+    ota_destroy(ota);
 
     audio_processor_t *audio_processor = audio_processor_create();
     audio_processor_register_event_cb(audio_processor, audio_sr_event_cb, audio_processor);

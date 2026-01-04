@@ -30,7 +30,7 @@ void bsp_board_nvs_init(bsp_board_t *bsp_board)
     ESP_ERROR_CHECK(nvs_open("Settings", NVS_READWRITE, &nvs_handle));
 
     size_t length = 37;
-    esp_err_t ret = nvs_get_str(nvs_handle, "uuid", bsp_board->uuid, &length);
+    ret = nvs_get_str(nvs_handle, "uuid", bsp_board->uuid, &length);
     if (ret == ESP_ERR_NVS_NOT_FOUND)
     {
         // 随机生成一个新的UUID
