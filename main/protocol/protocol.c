@@ -87,15 +87,15 @@ static void protocol_tts_handler(protocol_t *protocol, cJSON *root)
         return;
     }
 
-    if (strcmp(state->valuestring, "start"))
+    if (strcmp(state->valuestring, "start") == 0)
     {
         protocol->callback(protocol->handler_args, PROTOCOL_EVENT, PROTOCOL_EVENT_TTS_START, NULL);
     }
-    else if (strcmp(state->valuestring, "stop"))
+    else if (strcmp(state->valuestring, "stop") == 0)
     {
         protocol->callback(protocol->handler_args, PROTOCOL_EVENT, PROTOCOL_EVENT_TTS_STOP, NULL);
     }
-    else if (strcmp(state->valuestring, "sentence_start"))
+    else if (strcmp(state->valuestring, "sentence_start") == 0)
     {
         // 获取text
         cJSON *text = cJSON_GetObjectItem(root, "text");
@@ -133,9 +133,9 @@ static void protocol_websocket_event_handler(void *handler_args, esp_event_base_
         break;
     case WEBSOCKET_EVENT_DATA: /*!< When receiving data from the server, possibly multiple portions of the packet */
         // 检查数据类型
-        if (data->op_code != 0x01 || data->op_code != 0x02)
+        if (data->op_code != 0x01 && data->op_code != 0x02)
         {
-            ESP_LOGD(TAG, "Websocket data received, no need to handle");
+            ESP_LOGD(TAG, "Websocket data (opcode %u) received, no need to handle", data->op_code);
             return;
         }
 
@@ -143,7 +143,7 @@ static void protocol_websocket_event_handler(void *handler_args, esp_event_base_
         if (data->op_code == 0x02)
         {
             // 音频片段
-            binary_data_t bin = {.ptr = data->data_ptr, .size = data->data_len};
+            binary_data_t bin = {.ptr = (void *)data->data_ptr, .size = data->data_len};
             protocol->callback(protocol->handler_args, PROTOCOL_EVENT, PROTOCOL_EVENT_AUDIO, &bin);
             return;
         }
@@ -202,6 +202,7 @@ static void protocol_websocket_event_handler(void *handler_args, esp_event_base_
 
 protocol_t *protocol_create(char *url, char *token)
 {
+    esp_log_level_set(TAG, ESP_LOG_DEBUG);
     protocol_t *protocol = (protocol_t *)malloc_zeroed(sizeof(protocol_t));
     bsp_board_t *board = bsp_board_get_instance();
 
@@ -294,7 +295,7 @@ void protocol_send_audio_data(protocol_t *protocol, binary_data_t *data)
     esp_websocket_client_send_bin(protocol->websocket_client, data->ptr, data->size, pdMS_TO_TICKS(10000));
 }
 
-void protocol_send_abord_speaking(protocol_t *protocol)
+void protocol_send_abort_speaking(protocol_t *protocol)
 {
     protocol_send_text(protocol, "{\"reason\":\"wake_word_detected\",\"session_id\":\"%s\",\"type\":\"abort\"}", protocol->session_id);
 }

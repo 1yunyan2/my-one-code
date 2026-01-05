@@ -46,6 +46,6 @@ void protocol_send_wake_word(protocol_t *protocol, char *wake_word);
 void protocol_send_start_listening(protocol_t *protocol, protocol_listen_type_t type);
 void protocol_send_stop_listening(protocol_t *protocol);
 void protocol_send_audio_data(protocol_t *protocol, binary_data_t *data);
-void protocol_send_abord_speaking(protocol_t *protocol);
+void protocol_send_abort_speaking(protocol_t *protocol);
 
 void protocol_register_callback(protocol_t *protocol, esp_event_handler_t callback, void *handler_args);
