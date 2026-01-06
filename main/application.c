@@ -6,8 +6,12 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "ui/ui.h"
+#include "esp_random.h"
+#include <string.h>
 
 #define TAG "Application"
+#define PRINT_INTERNAL_HEAP \
+    ESP_LOGE(TAG, "[%s:%d] heap size: %lu", __FILE__, __LINE__, esp_get_free_internal_heap_size())
 
 static const char *app_state_str[] = {
     "启动中",
@@ -39,6 +43,9 @@ typedef struct
 
     // 唤醒超时计时器
     esp_timer_handle_t wakeup_timer;
+
+    // 状态更新计时器
+    esp_timer_handle_t status_timer;
 } application_t;
 
 static application_t s_app;
@@ -51,6 +58,7 @@ static void application_set_state(application_t *app, app_state_t state)
     }
     ESP_LOGI(TAG, "状态切换: %s -> %s", app_state_str[app->state], app_state_str[state]);
     app->state = state;
+    ui_update_status(app_state_str[app->state]);
 
     if (app->state == APP_STATE_WAKEUP)
     {
@@ -83,6 +91,7 @@ static void application_check_activation(application_t *app, ota_t *ota)
         application_set_state(app, APP_STATE_ACTIVATING);
 
         ESP_LOGI(TAG, "Activation code: %s", ota->activation_code);
+        ui_show_notification("激活码", ota->activation_code, 5000);
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
@@ -156,9 +165,11 @@ static void application_protocol_callback(void *event_handler_arg,
         break;
     case PROTOCOL_EVENT_STT: // event_data为char*
         ESP_LOGI(TAG, "STT: %s", (char *)event_data);
+        ui_update_text((char *)event_data);
         break;
     case PROTOCOL_EVENT_LLM: // event_data为char*
         ESP_LOGI(TAG, "LLM: %s", (char *)event_data);
+        ui_update_emotion((char *)event_data);
         break;
     case PROTOCOL_EVENT_TTS_START: // event_data为NULL
         if (app->state == APP_STATE_WAKEUP)
@@ -169,6 +180,7 @@ static void application_protocol_callback(void *event_handler_arg,
         break;
     case PROTOCOL_EVENT_TTS_SENTENCE_START: // event_data为char*
         ESP_LOGI(TAG, "TTS: %s", (char *)event_data);
+        ui_update_text((char *)event_data);
         break;
     case PROTOCOL_EVENT_TTS_STOP: // event_data为NULL
         if (app->state == APP_STATE_SPEAKING)
@@ -211,23 +223,50 @@ static void application_upload_task(void *arg)
     }
 }
 
+static void application_status_timer_callback(void *arg)
+{
+    // 获取电池电量
+    uint8_t battery_soc = 0;
+    esp_fill_random(&battery_soc, sizeof(battery_soc));
+    if (battery_soc > 100)
+    {
+        battery_soc = 100;
+    }
+
+    // 获取wifi强度
+    int wifi_rssi = bsp_board_wifi_get_rssi(bsp_board_get_instance());
+
+    ui_update_battery(battery_soc);
+    ui_update_wifi(wifi_rssi);
+}
 void application_init(void)
 {
     s_app.state = APP_STATE_STARTING;
 
     bsp_board_t *bsp_board = bsp_board_get_instance();
+    PRINT_INTERNAL_HEAP;
 
     // 先初始化LCD
     bsp_board_lcd_init(bsp_board);
     ui_init();
+    PRINT_INTERNAL_HEAP;
     bsp_board_lcd_on(bsp_board);
     bsp_board_led_indicator_init(bsp_board);
     bsp_board_button_init(bsp_board);
+    PRINT_INTERNAL_HEAP;
 
     iot_button_register_cb(bsp_board->sw2, BUTTON_LONG_PRESS_START, NULL, application_button_cb, NULL);
 
     bsp_board_nvs_init(bsp_board);
-    bsp_board_wifi_init(bsp_board);
+    PRINT_INTERNAL_HEAP;
+    char payload[150] = {0};
+    bsp_board_wifi_init(bsp_board, payload, sizeof(payload));
+    if (strlen(payload) > 0)
+    {
+        ui_show_qrcode("扫描二维码配网", payload);
+    }
+    PRINT_INTERNAL_HEAP;
+
     bsp_board_codec_init(bsp_board);
 
     // 打开音频设备
@@ -239,6 +278,7 @@ void application_init(void)
         .channel = 2,
     };
     esp_codec_dev_open(bsp_board->codec_dev, &sample_info);
+    PRINT_INTERNAL_HEAP;
 
     bool ret = bsp_board_check_status(bsp_board, LED_BIT | BUTTON_BIT | CODEC_BIT | NVS_BIT | WIFI_BIT, portMAX_DELAY);
     if (!ret)
@@ -246,16 +286,20 @@ void application_init(void)
         ESP_LOGE(TAG, "设备启动失败");
         return;
     }
+    ui_show_qrcode(NULL, NULL);
 
     ota_t *ota = ota_create();
+    PRINT_INTERNAL_HEAP;
 
     application_check_activation(&s_app, ota);
 
     // 初始化音频处理器和协议模块
     s_app.protocol = protocol_create(ota->websocket_url, ota->websocket_token);
     ota_destroy(ota);
+    PRINT_INTERNAL_HEAP;
 
     s_app.processor = audio_processor_create();
+    PRINT_INTERNAL_HEAP;
 
     // 设置音频处理模块和协议模块的回调函数
     audio_processor_register_event_cb(s_app.processor, application_audio_processor_callback, &s_app);
@@ -265,6 +309,7 @@ void application_init(void)
     audio_processor_start(s_app.processor);
     xTaskCreatePinnedToCoreWithCaps(application_upload_task, "upload_task", 4096, &s_app, 5, &s_app.upload_task, 1, MALLOC_CAP_SPIRAM);
 
+    PRINT_INTERNAL_HEAP;
     // 初始化超时计时器
     esp_timer_create_args_t timer_config = {
         .callback = (esp_timer_cb_t)protocol_disconnect,
@@ -273,6 +318,14 @@ void application_init(void)
         .skip_unhandled_events = true,
     };
     ESP_ERROR_CHECK(esp_timer_create(&timer_config, &s_app.wakeup_timer));
+    PRINT_INTERNAL_HEAP;
+
+    timer_config.callback = (esp_timer_cb_t)application_status_timer_callback;
+    timer_config.arg = &s_app;
+    timer_config.name = "status_timer";
+    ESP_ERROR_CHECK(esp_timer_create(&timer_config, &s_app.status_timer));
+    esp_timer_start_periodic(s_app.status_timer, 1000 * 1000);
+    PRINT_INTERNAL_HEAP;
 
     // 切换到空闲模式
     application_set_state(&s_app, APP_STATE_IDLE);

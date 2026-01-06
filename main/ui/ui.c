@@ -2,6 +2,41 @@
 #include "lvgl.h"
 #include "esp_lvgl_port.h"
 #include "bsp/bsp_board.h"
+#include "font_emoji.h"
+#include "font_awesome.h"
+
+#define TEXT_FONT font_puhui_16_4
+#define ICON_FONT font_awesome_16_4
+
+typedef struct
+{
+    char *emotion;
+    char *emoji;
+} emoji_map_t;
+
+static const emoji_map_t emoji_map[] = {
+    {"neutral", "😶"},
+    {"happy", "🙂"},
+    {"laughing", "😆"},
+    {"funny", "😂"},
+    {"sad", "😔"},
+    {"angry", "😠"},
+    {"crying", "😭"},
+    {"loving", "😍"},
+    {"embarrassed", "😳"},
+    {"surprised", "😯"},
+    {"shocked", "😱"},
+    {"thinking", "🤔"},
+    {"winking", "😉"},
+    {"cool", "😎"},
+    {"relaxed", "😌"},
+    {"delicious", "🤤"},
+    {"kissy", "😘"},
+    {"confident", "😏"},
+    {"sleepy", "😴"},
+    {"silly", "😜"},
+    {"confused", "🙄"},
+};
 
 typedef struct
 {
@@ -12,10 +47,17 @@ typedef struct
         lv_color_t status_bar_text_color;
         lv_color_t content_bg_color;
         lv_color_t content_text_color;
+
+        const lv_font_t *icon_font;
+        const lv_font_t *text_font;
+        const lv_font_t *emoji_font;
     } theme;
 
     lv_obj_t *qrcode_bg;
 } common_data_t;
+
+LV_FONT_DECLARE(ICON_FONT);
+LV_FONT_DECLARE(TEXT_FONT);
 
 static void ui_port_init(void)
 {
@@ -27,7 +69,7 @@ static void ui_port_init(void)
         .task_stack_caps = MALLOC_CAP_SPIRAM,
         .timer_period_ms = 10,
     };
-    esp_err_t err = lvgl_port_init(&lvgl_cfg);
+    lvgl_port_init(&lvgl_cfg);
 
     bsp_board_t *board = bsp_board_get_instance();
 
@@ -51,7 +93,7 @@ static void ui_port_init(void)
             .swap_bytes = false,
             .buff_spiram = true,
         }};
-    lv_disp_t *disp_handle = lvgl_port_add_disp(&disp_cfg);
+    lvgl_port_add_disp(&disp_cfg);
 }
 
 static void ui_visual_init(void)
@@ -73,6 +115,10 @@ static void ui_visual_init(void)
     common_styles->theme.content_bg_color = lv_color_white();
     common_styles->theme.content_text_color = lv_color_black();
 
+    common_styles->theme.icon_font = &ICON_FONT;
+    common_styles->theme.text_font = &TEXT_FONT;
+    common_styles->theme.emoji_font = font_emoji_64_init();
+
     lv_obj_t *status_bar = lv_obj_create(screen);
     lv_obj_set_pos(status_bar, 0, 0);
     lv_obj_set_size(status_bar, LV_PCT(100), LV_PCT(8));
@@ -86,31 +132,34 @@ static void ui_visual_init(void)
     lv_obj_set_style_bg_color(content, common_styles->theme.content_bg_color, 0);
 
     lv_obj_t *wifi_label = lv_label_create(status_bar);
+    lv_obj_set_style_text_font(wifi_label, common_styles->theme.icon_font, 0);
     lv_obj_set_style_text_color(wifi_label, common_styles->theme.status_bar_text_color, 0);
     lv_label_set_text(wifi_label, LV_SYMBOL_WIFI);
     lv_obj_align(wifi_label, LV_ALIGN_LEFT_MID, LV_PCT(4), 0);
 
     lv_obj_t *battery_label = lv_label_create(status_bar);
+    lv_obj_set_style_text_font(battery_label, common_styles->theme.icon_font, 0);
     lv_obj_set_style_text_color(battery_label, common_styles->theme.status_bar_text_color, 0);
     lv_label_set_text(battery_label, LV_SYMBOL_BATTERY_FULL);
     lv_obj_align(battery_label, LV_ALIGN_RIGHT_MID, LV_PCT(-4), 0);
 
     lv_obj_t *status_label = lv_label_create(status_bar);
+    lv_obj_set_style_text_font(status_label, common_styles->theme.text_font, 0);
     lv_obj_set_style_text_color(status_label, common_styles->theme.status_bar_text_color, 0);
-    lv_label_set_text(status_label, "Starting");
+    lv_label_set_text(status_label, "启动中");
     lv_obj_align(status_label, LV_ALIGN_CENTER, 0, 0);
 
     lv_obj_t *emotion_label = lv_label_create(content);
     lv_obj_set_style_text_color(emotion_label, common_styles->theme.content_text_color, 0);
-    lv_obj_set_style_text_font(emotion_label, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(emotion_label, common_styles->theme.emoji_font, 0);
     lv_obj_align(emotion_label, LV_ALIGN_CENTER, 0, LV_PCT(-20));
-    lv_label_set_text(emotion_label, ":)");
+    lv_label_set_text(emotion_label, "😶");
 
     lv_obj_t *text_label = lv_label_create(content);
     lv_obj_set_style_text_color(text_label, common_styles->theme.content_text_color, 0);
-    lv_obj_set_style_text_font(text_label, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_font(text_label, common_styles->theme.text_font, 0);
     lv_obj_align(text_label, LV_ALIGN_CENTER, 0, LV_PCT(10));
-    lv_label_set_text(text_label, "Hello, I'm xiaozhi, an AI assistant. use \"Nihao xiaozhi\" to wake me up.");
+    lv_label_set_text(text_label, "你好，我是小智，请使用“你好小智”唤醒我");
     lv_obj_set_width(text_label, LV_PCT(80));
     lv_label_set_long_mode(text_label, LV_LABEL_LONG_MODE_WRAP);
 }
@@ -131,9 +180,23 @@ void ui_update_wifi(int rssi)
     lv_obj_t *status_bar = lv_obj_get_child(screen, 0);
     lv_obj_t *wifi_label = lv_obj_get_child(status_bar, 0);
 
+    char *wifi_str = FONT_AWESOME_WIFI_SLASH;
+    if (rssi < 0 && rssi >= -50)
+    {
+        wifi_str = FONT_AWESOME_WIFI;
+    }
+    else if (rssi < -50 && rssi >= -70)
+    {
+        wifi_str = FONT_AWESOME_WIFI_FAIR;
+    }
+    else if (rssi < -70)
+    {
+        wifi_str = FONT_AWESOME_WIFI_WEAK;
+    }
+
     if (lvgl_port_lock(1000))
     {
-        lv_label_set_text(wifi_label, rssi > -50 ? LV_SYMBOL_WIFI : LV_SYMBOL_WIFI " ");
+        lv_label_set_text(wifi_label, wifi_str);
         lvgl_port_unlock();
     }
 }
@@ -141,12 +204,12 @@ void ui_update_wifi(int rssi)
 void ui_update_battery(int soc)
 {
     static const char *battery_str[] = {
-        LV_SYMBOL_BATTERY_EMPTY,
-        LV_SYMBOL_BATTERY_1,
-        LV_SYMBOL_BATTERY_2,
-        LV_SYMBOL_BATTERY_3,
-        LV_SYMBOL_BATTERY_FULL,
-        LV_SYMBOL_BATTERY_FULL,
+        FONT_AWESOME_BATTERY_EMPTY,
+        FONT_AWESOME_BATTERY_QUARTER,
+        FONT_AWESOME_BATTERY_HALF,
+        FONT_AWESOME_BATTERY_THREE_QUARTERS,
+        FONT_AWESOME_BATTERY_FULL,
+        FONT_AWESOME_BATTERY_FULL,
     };
     lv_obj_t *screen = lv_screen_active();
     lv_obj_t *status_bar = lv_obj_get_child(screen, 0);
@@ -181,9 +244,19 @@ void ui_update_emotion(const char *emotion)
     lv_obj_t *screen = lv_screen_active();
     lv_obj_t *content = lv_obj_get_child(screen, 1);
     lv_obj_t *emotion_label = lv_obj_get_child(content, 0);
+    char *emoji = "😶";
+    for (size_t i = 0; i < sizeof(emoji_map) / sizeof(emoji_map_t); i++)
+    {
+        if (strcmp(emoji_map[i].emotion, emotion) == 0)
+        {
+            emoji = emoji_map[i].emoji;
+            break;
+        }
+    }
+
     if (lvgl_port_lock(1000))
     {
-        lv_label_set_text(emotion_label, emotion);
+        lv_label_set_text(emotion_label, emoji);
         lvgl_port_unlock();
     }
 }
@@ -217,12 +290,14 @@ void ui_show_notification(const char *title, const char *message, uint32_t timeo
     }
 
     lv_obj_t *screen = lv_screen_active();
+    common_data_t* common_data = lv_obj_get_user_data(screen);
     lv_obj_t *noti_bg = lv_obj_create(screen);
     lv_obj_set_size(noti_bg, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(noti_bg, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(noti_bg, LV_OPA_30, 0);
 
     lv_obj_t *msg_box = lv_msgbox_create(noti_bg);
+    lv_obj_set_style_text_font(msg_box, common_data->theme.text_font, 0);
     lv_obj_set_size(msg_box, LV_PCT(80), LV_PCT(40));
     lv_obj_set_align(msg_box, LV_ALIGN_CENTER);
     if (title)
@@ -276,6 +351,7 @@ void ui_show_qrcode(const char *title, const char *content)
     {
         lv_obj_t *title_label = lv_label_create(noti_bg);
         lv_obj_set_style_text_color(title_label, lv_color_black(), 0);
+        lv_obj_set_style_text_font(title_label, common_data->theme.text_font, 0);
         lv_label_set_text(title_label, title);
         lv_obj_align(title_label, LV_ALIGN_TOP_MID, 0, 0);
     }

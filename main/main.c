@@ -12,12 +12,12 @@ void heap_monitor_task(void *arg)
     {
         uint32_t heap_size = esp_get_free_internal_heap_size();
         ESP_LOGE(TAG, "heap size: %lu", heap_size);
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
 void app_main(void)
 {
-    xTaskCreate(heap_monitor_task, "heap_monitor_task", 4096, NULL, 5, NULL);
+    // xTaskCreate(heap_monitor_task, "heap_monitor_task", 4096, NULL, 5, NULL);
     application_init();
 }

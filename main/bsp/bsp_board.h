@@ -52,9 +52,11 @@ void bsp_board_led_indicator_set_blink_type(bsp_board_t *bsp_board, bsp_board_le
 
 void bsp_board_button_init(bsp_board_t *bsp_board);
 
-void bsp_board_wifi_init(bsp_board_t *bsp_board);
+void bsp_board_wifi_init(bsp_board_t *bsp_board, char* qrcode_payload, size_t qrcode_payload_len);
 
 void bsp_board_wifi_reset_provisioning(bsp_board_t *bsp_board);
+
+int bsp_board_wifi_get_rssi(bsp_board_t *bsp_board);
 
 void bsp_board_nvs_init(bsp_board_t *bsp_board);
 

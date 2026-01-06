@@ -28,7 +28,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-void bsp_board_wifi_init(bsp_board_t *bsp_board)
+void bsp_board_wifi_init(bsp_board_t *bsp_board, char* payload, size_t len)
 {
     if (!bsp_board_check_status(bsp_board, NVS_BIT, 0))
     {
@@ -89,8 +89,7 @@ void bsp_board_wifi_init(bsp_board_t *bsp_board)
         ESP_ERROR_CHECK(wifi_prov_mgr_start_provisioning(WIFI_PROV_SECURITY_1, (const void *)security_key, service_name, NULL));
 
         // 生成二维码
-        char payload[150] = {0};
-        snprintf(payload, sizeof(payload), "{\"ver\":\"v1\",\"name\":\"%s\""
+        snprintf(payload, len, "{\"ver\":\"v1\",\"name\":\"%s\""
                                            ",\"pop\":\"%s\",\"transport\":\"ble\"}",
                  service_name, security_key);
         ESP_LOGI(TAG, "QR code: %s", payload);
@@ -108,4 +107,15 @@ void bsp_board_wifi_reset_provisioning(bsp_board_t *bsp_board)
 {
     wifi_prov_mgr_reset_provisioning();
     esp_restart();
+}
+
+int bsp_board_wifi_get_rssi(bsp_board_t *bsp_board)
+{
+    int rssi = 0;
+    esp_err_t ret = esp_wifi_sta_get_rssi(&rssi);
+    if (ret == ESP_OK)
+    {
+        return rssi;
+    }
+    return 0;
 }

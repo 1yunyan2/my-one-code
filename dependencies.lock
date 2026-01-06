@@ -1,4 +1,14 @@
 dependencies:
+  78/xiaozhi-fonts:
+    component_hash: e5526ea3c290742963ef6ab64023669260b72aefdc37bb218c34c618962ef2a8
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.5.5
   espressif/button:
     component_hash: fccb18c37f1cfe0797b74a53a44d3f400f5fd01f4993b40052dfb7f401915089
     dependencies:
@@ -145,6 +155,7 @@ dependencies:
       type: service
     version: 9.4.0
 direct_dependencies:
+- 78/xiaozhi-fonts
 - espressif/button
 - espressif/esp-sr
 - espressif/esp_audio_codec
@@ -153,6 +164,6 @@ direct_dependencies:
 - espressif/esp_websocket_client
 - espressif/led_indicator
 - idf
-manifest_hash: 3b1a9b1da805a341a4ed00a45027f3f86085cd77f43ad964aee9bda2a9fef648
+manifest_hash: 4fe7c833eb0915600148c077dd3a8ded3830ed9b4adcc586cfdfdf10e2fcd7c1
 target: esp32s3
 version: 2.0.0
