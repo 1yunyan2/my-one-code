@@ -37,6 +37,7 @@ void bsp_board_lcd_init(bsp_board_t *bsp_board)
         .reset_gpio_num = BSP_LCD_RST_PIN,
         .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
         .bits_per_pixel = 16,
+        .data_endian = LCD_RGB_DATA_ENDIAN_LITTLE,
     };
     // Initialize the LCD configuration
     ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(bsp_board->lcd_io, &panel_config, &bsp_board->lcd_panel));

@@ -19,3 +19,5 @@
 #define BSP_LCD_DC_PIN 45
 #define BSP_LCD_RST_PIN 16
 #define BSP_LCD_BK_PIN 40
+#define BSP_LCD_WIDTH 240
+#define BSP_LCD_HEIGHT 320

@@ -5,6 +5,7 @@
 #include "protocol/protocol.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "ui/ui.h"
 
 #define TAG "Application"
 
@@ -215,6 +216,11 @@ void application_init(void)
     s_app.state = APP_STATE_STARTING;
 
     bsp_board_t *bsp_board = bsp_board_get_instance();
+
+    // 先初始化LCD
+    bsp_board_lcd_init(bsp_board);
+    ui_init();
+    bsp_board_lcd_on(bsp_board);
     bsp_board_led_indicator_init(bsp_board);
     bsp_board_button_init(bsp_board);
 
