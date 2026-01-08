@@ -21,6 +21,7 @@ ESP_EVENT_DEFINE_BASE(PROTOCOL_EVENT);
         }                                                                                                            \
         char *_message = NULL;                                                                                       \
         asprintf(&_message, fmtstr, ##__VA_ARGS__);                                                                  \
+        ESP_LOGD(TAG, "Sending message: %s", _message);                                                              \
         esp_websocket_client_send_text(protocol->websocket_client, _message, strlen(_message), pdMS_TO_TICKS(5000)); \
         free(_message);                                                                                              \
     } while (0)
@@ -39,7 +40,7 @@ static void protocol_hello_handler(protocol_t *protocol, cJSON *root)
     // 解析session_id
     free(protocol->session_id);
     protocol->session_id = NULL;
-    
+
     cJSON *session_id = cJSON_GetObjectItem(root, "session_id");
     if (cJSON_IsString(session_id))
     {
@@ -108,6 +109,18 @@ static void protocol_tts_handler(protocol_t *protocol, cJSON *root)
     }
 }
 
+static void protocol_iot_handler(protocol_t *protocol, cJSON *root)
+{
+    // 解析commands
+    cJSON *commands = cJSON_GetObjectItem(root, "commands");
+    if (!commands)
+    {
+        ESP_LOGW(TAG, "Iot data received, but commands is not object");
+        return;
+    }
+    protocol->callback(protocol->handler_args, PROTOCOL_EVENT, PROTOCOL_EVENT_IOT, commands);
+}
+
 static void protocol_websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     protocol_t *protocol = (protocol_t *)handler_args;
@@ -149,6 +162,7 @@ static void protocol_websocket_event_handler(void *handler_args, esp_event_base_
         }
 
         // 文本数据
+        ESP_LOGD(TAG, "Text data received: %.*s", data->data_len, data->data_ptr);
         cJSON *root = cJSON_ParseWithLength(data->data_ptr, data->data_len);
         if (!root)
         {
@@ -179,6 +193,10 @@ static void protocol_websocket_event_handler(void *handler_args, esp_event_base_
         else if (strcmp(type->valuestring, "tts") == 0)
         {
             protocol_tts_handler(protocol, root);
+        }
+        else if (strcmp(type->valuestring, "iot") == 0)
+        {
+            protocol_iot_handler(protocol, root);
         }
         cJSON_Delete(root);
         break;
@@ -298,6 +316,28 @@ void protocol_send_audio_data(protocol_t *protocol, binary_data_t *data)
 void protocol_send_abort_speaking(protocol_t *protocol)
 {
     protocol_send_text(protocol, "{\"reason\":\"wake_word_detected\",\"session_id\":\"%s\",\"type\":\"abort\"}", protocol->session_id);
+}
+
+void protocol_send_iot(protocol_t *protocol, protocol_iot_message_type_t type, cJSON *json)
+{
+    if (!esp_websocket_client_is_connected(protocol->websocket_client))
+    {
+        ESP_LOGW(TAG, "Websocket is not connected");
+        return;
+    }
+
+    const char *type_str[] = {"descriptors", "states"};
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "session_id", protocol->session_id);
+    cJSON_AddStringToObject(root, "type", "iot");
+    cJSON_AddBoolToObject(root, "update", cJSON_True);
+    cJSON_AddItemToObject(root, type_str[type], json);
+
+    char *json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+
+    esp_websocket_client_send_text(protocol->websocket_client, json_str, strlen(json_str), pdMS_TO_TICKS(10000));
+    free(json_str);
 }
 
 void protocol_register_callback(protocol_t *protocol, esp_event_handler_t callback, void *handler_args)

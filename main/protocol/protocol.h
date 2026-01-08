@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "esp_event.h"
+#include "cJSON.h"
 
 typedef enum
 {
@@ -15,6 +16,7 @@ typedef enum
     PROTOCOL_EVENT_TTS_SENTENCE_START, // event_data为char*
     PROTOCOL_EVENT_TTS_STOP,           // event_data为NULL
     PROTOCOL_EVENT_AUDIO,              // event_data为binary_data_t*
+    PROTOCOL_EVENT_IOT,                // event_data为cJSON*
 } protocol_event_t;
 
 typedef enum
@@ -23,6 +25,12 @@ typedef enum
     PROTOCOL_LISTEN_TYPE_MANUAL,
     PROTOCOL_LISTEN_TYPE_REALTIME,
 } protocol_listen_type_t;
+
+typedef enum
+{
+    MESSAGE_TYPE_DESCRIPTOR,
+    MESSAGE_TYPE_STATE,
+} protocol_iot_message_type_t;
 
 typedef struct
 {
@@ -47,5 +55,6 @@ void protocol_send_start_listening(protocol_t *protocol, protocol_listen_type_t 
 void protocol_send_stop_listening(protocol_t *protocol);
 void protocol_send_audio_data(protocol_t *protocol, binary_data_t *data);
 void protocol_send_abort_speaking(protocol_t *protocol);
+void protocol_send_iot(protocol_t *protocol, protocol_iot_message_type_t type, cJSON *json);
 
 void protocol_register_callback(protocol_t *protocol, esp_event_handler_t callback, void *handler_args);

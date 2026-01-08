@@ -8,6 +8,7 @@
 #include "ui/ui.h"
 #include "esp_random.h"
 #include <string.h>
+#include "iot/speaker_thing.h"
 
 #define TAG "Application"
 #define PRINT_INTERNAL_HEAP \
@@ -46,6 +47,9 @@ typedef struct
 
     // 状态更新计时器
     esp_timer_handle_t status_timer;
+
+    // iot thing列表
+    things_t *things;
 } application_t;
 
 static application_t s_app;
@@ -159,6 +163,8 @@ static void application_protocol_callback(void *event_handler_arg,
         if (app->state == APP_STATE_CONNECTING)
         {
             application_set_state(app, APP_STATE_WAKEUP);
+            protocol_send_iot(app->protocol, MESSAGE_TYPE_DESCRIPTOR, things_get_descriptor_json(app->things));
+            protocol_send_iot(app->protocol, MESSAGE_TYPE_STATE, things_get_state_json(app->things));
             protocol_send_wake_word(app->protocol, "你好小智");
             audio_processor_set_vad_state(app->processor, true);
         }
@@ -196,7 +202,10 @@ static void application_protocol_callback(void *event_handler_arg,
             binary_data_t *data = (binary_data_t *)event_data;
             audio_processor_write(app->processor, data->ptr, data->size);
         }
+        break;
 
+    case PROTOCOL_EVENT_IOT:
+        things_invoke(app->things, (cJSON *)event_data);
         break;
     default:
         break;
@@ -326,6 +335,9 @@ void application_init(void)
     ESP_ERROR_CHECK(esp_timer_create(&timer_config, &s_app.status_timer));
     esp_timer_start_periodic(s_app.status_timer, 1000 * 1000);
     PRINT_INTERNAL_HEAP;
+
+    s_app.things = mylist_create();
+    mylist_add(s_app.things, speaker_thing_create());
 
     // 切换到空闲模式
     application_set_state(&s_app, APP_STATE_IDLE);
