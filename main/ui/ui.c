@@ -1,3 +1,16 @@
+/**
+ * @file ui.c
+ * @brief 用户界面模块实现
+ * 
+ * 基于 LVGL 图形库实现 LCD 显示屏的用户界面：
+ * - 状态栏显示（时间、电量、WiFi 信号）
+ * - 主内容区显示（状态文字、表情符号、对话文本）
+ * - 通知提示框
+ * - 二维码显示
+ * 
+ * 所有 UI 操作都是线程安全的，可以在不同任务中调用
+ */
+
 #include "ui.h"
 #include "lvgl.h"
 #include "esp_lvgl_port.h"
@@ -5,15 +18,23 @@
 #include "font_emoji.h"
 #include "font_awesome.h"
 
+/// 正文文本使用的字体
 #define TEXT_FONT font_puhui_16_4
+/// 图标使用的字体
 #define ICON_FONT font_awesome_16_4
 
+/**
+ * @brief 表情符号映射结构
+ * 
+ * 将情绪名称映射到对应的 emoji 表情
+ */
 typedef struct
 {
-    char *emotion;
-    char *emoji;
+    char *emotion;   ///< 情绪名称（英文）
+    char *emoji;     ///< 对应的 emoji 表情字符串
 } emoji_map_t;
 
+/// 表情映射表（支持 20 种情绪）
 static const emoji_map_t emoji_map[] = {
     {"neutral", "😶"},
     {"happy", "🙂"},
@@ -38,123 +59,149 @@ static const emoji_map_t emoji_map[] = {
     {"confused", "🙄"},
 };
 
+/**
+ * @brief UI 通用数据结构
+ * 
+ * 存储全局样式、配色方案和 UI 组件引用
+ */
 typedef struct
 {
-    lv_style_t container_style;
+    lv_style_t container_style;  ///< 容器通用样式
     struct
     {
-        lv_color_t status_bar_bg_color;
-        lv_color_t status_bar_text_color;
-        lv_color_t content_bg_color;
-        lv_color_t content_text_color;
+        lv_color_t status_bar_bg_color;    ///< 状态栏背景色
+        lv_color_t status_bar_text_color;  ///< 状态栏文字颜色
+        lv_color_t content_bg_color;       ///< 内容区背景色
+        lv_color_t content_text_color;     ///< 内容区文字颜色
 
-        const lv_font_t *icon_font;
-        const lv_font_t *text_font;
-        const lv_font_t *emoji_font;
+        const lv_font_t *icon_font;        ///< 图标字体
+        const lv_font_t *text_font;        ///< 正文字体
+        const lv_font_t *emoji_font;       ///< 表情字体
     } theme;
 
-    lv_obj_t *qrcode_bg;
+    lv_obj_t *qrcode_bg;  ///< 二维码背景对象
 } common_data_t;
 
+// 声明 LVGL 字体
 LV_FONT_DECLARE(ICON_FONT);
 LV_FONT_DECLARE(TEXT_FONT);
 
+/**
+ * @brief 初始化 LVGL 端口和显示设备
+ * 
+ * 配置 LVGL 图形库的任务参数、定时器周期，
+ * 并注册 LCD 显示屏驱动。
+ */
 static void ui_port_init(void)
 {
+    // 配置 LVGL 端口参数
     const lvgl_port_cfg_t lvgl_cfg = {
-        .task_priority = 5,
-        .task_stack = 8192,
-        .task_affinity = 0,
-        .task_max_sleep_ms = 500,
-        .task_stack_caps = MALLOC_CAP_SPIRAM,
-        .timer_period_ms = 10,
+        .task_priority = 5,              // 任务优先级
+        .task_stack = 8192,              // 任务堆栈大小
+        .task_affinity = 0,              // 任务绑定的 CPU 核心
+        .task_max_sleep_ms = 500,        // 最大睡眠时间
+        .task_stack_caps = MALLOC_CAP_SPIRAM, // 使用 SPIRAM 分配堆栈
+        .timer_period_ms = 10,           // 定时器周期（10ms）
     };
     lvgl_port_init(&lvgl_cfg);
 
     bsp_board_t *board = bsp_board_get_instance();
 
-    /* Add LCD screen */
+    /* 添加 LCD 屏幕配置 */
     const lvgl_port_display_cfg_t disp_cfg = {
-        .io_handle = board->lcd_io,
-        .panel_handle = board->lcd_panel,
-        .buffer_size = BSP_LCD_WIDTH * BSP_LCD_HEIGHT / 4,
-        .double_buffer = true,
-        .hres = BSP_LCD_WIDTH,
-        .vres = BSP_LCD_HEIGHT,
-        .monochrome = false,
-        .color_format = LV_COLOR_FORMAT_RGB565,
+        .io_handle = board->lcd_io,           // LCD IO 句柄
+        .panel_handle = board->lcd_panel,     // LCD 面板句柄
+        .buffer_size = BSP_LCD_WIDTH * BSP_LCD_HEIGHT / 4, // 缓冲区大小（1/4 屏）
+        .double_buffer = true,                // 启用双缓冲
+        .hres = BSP_LCD_WIDTH,                // 水平分辨率
+        .vres = BSP_LCD_HEIGHT,               // 垂直分辨率
+        .monochrome = false,                  // 非单色屏
+        .color_format = LV_COLOR_FORMAT_RGB565, // RGB565 格式
         .rotation = {
-            .swap_xy = false,
-            .mirror_x = true,
-            .mirror_y = true,
+            .swap_xy = false,                 // 不交换 XY
+            .mirror_x = true,                 // X 轴镜像
+            .mirror_y = true,                 // Y 轴镜像
         },
         .flags = {
-            .buff_dma = true,
-            .swap_bytes = false,
-            .buff_spiram = true,
+            .buff_dma = true,                 // 使用 DMA 传输
+            .swap_bytes = false,              // 不交换字节
+            .buff_spiram = true,              // 使用 SPIRAM 分配缓冲区
         }};
     lvgl_port_add_disp(&disp_cfg);
 }
 
+/**
+ * @brief 初始化 UI 视觉元素
+ * 
+ * 创建状态栏、内容区、标签等 UI 组件，
+ * 并设置样式和配色方案。
+ */
 static void ui_visual_init(void)
 {
-    // 通用样式
+    // 获取当前屏幕并分配通用数据
     lv_obj_t *screen = lv_screen_active();
     common_data_t *common_styles = lv_malloc_zeroed(sizeof(common_data_t));
     lv_obj_set_user_data(screen, common_styles);
 
-    // 初始化容器样式
+    // 初始化容器通用样式（无边框、无内边距、圆角为 0）
     lv_style_init(&common_styles->container_style);
     lv_style_set_border_width(&common_styles->container_style, 0);
     lv_style_set_pad_all(&common_styles->container_style, 0);
     lv_style_set_radius(&common_styles->container_style, 0);
 
-    // 初始化配色
-    common_styles->theme.status_bar_bg_color = lv_palette_darken(LV_PALETTE_GREY, 2);
-    common_styles->theme.status_bar_text_color = lv_color_white();
-    common_styles->theme.content_bg_color = lv_color_white();
-    common_styles->theme.content_text_color = lv_color_black();
+    // 初始化配色方案
+    common_styles->theme.status_bar_bg_color = lv_palette_darken(LV_PALETTE_GREY, 2); // 深灰色背景
+    common_styles->theme.status_bar_text_color = lv_color_white();                      // 白色文字
+    common_styles->theme.content_bg_color = lv_color_white();                           // 白色背景
+    common_styles->theme.content_text_color = lv_color_black();                         // 黑色文字
 
-    common_styles->theme.icon_font = &ICON_FONT;
-    common_styles->theme.text_font = &TEXT_FONT;
-    common_styles->theme.emoji_font = font_emoji_64_init();
+    common_styles->theme.icon_font = &ICON_FONT;      // 图标字体
+    common_styles->theme.text_font = &TEXT_FONT;      // 正文字体
+    common_styles->theme.emoji_font = font_emoji_64_init(); // 64 号表情字体
 
+    // ========== 创建状态栏 ==========
     lv_obj_t *status_bar = lv_obj_create(screen);
-    lv_obj_set_pos(status_bar, 0, 0);
-    lv_obj_set_size(status_bar, LV_PCT(100), LV_PCT(8));
+    lv_obj_set_pos(status_bar, 0, 0);                        // 顶部位置
+    lv_obj_set_size(status_bar, LV_PCT(100), LV_PCT(8));    // 宽度 100%，高度 8%
     lv_obj_add_style(status_bar, &common_styles->container_style, 0);
     lv_obj_set_style_bg_color(status_bar, common_styles->theme.status_bar_bg_color, 0);
 
+    // ========== 创建内容区 ==========
     lv_obj_t *content = lv_obj_create(screen);
-    lv_obj_set_pos(content, 0, LV_PCT(8));
-    lv_obj_set_size(content, LV_PCT(100), LV_PCT(92));
+    lv_obj_set_pos(content, 0, LV_PCT(8));                   // 状态栏下方
+    lv_obj_set_size(content, LV_PCT(100), LV_PCT(92));      // 宽度 100%，高度 92%
     lv_obj_add_style(content, &common_styles->container_style, 0);
     lv_obj_set_style_bg_color(content, common_styles->theme.content_bg_color, 0);
 
+    // ========== 创建 WiFi 图标 ==========
     lv_obj_t *wifi_label = lv_label_create(status_bar);
     lv_obj_set_style_text_font(wifi_label, common_styles->theme.icon_font, 0);
     lv_obj_set_style_text_color(wifi_label, common_styles->theme.status_bar_text_color, 0);
-    lv_label_set_text(wifi_label, LV_SYMBOL_WIFI);
-    lv_obj_align(wifi_label, LV_ALIGN_LEFT_MID, LV_PCT(4), 0);
+    lv_label_set_text(wifi_label, LV_SYMBOL_WIFI);  // WiFi 符号
+    lv_obj_align(wifi_label, LV_ALIGN_LEFT_MID, LV_PCT(4), 0); // 左侧居中
 
+    // ========== 创建电池图标 ==========
     lv_obj_t *battery_label = lv_label_create(status_bar);
     lv_obj_set_style_text_font(battery_label, common_styles->theme.icon_font, 0);
     lv_obj_set_style_text_color(battery_label, common_styles->theme.status_bar_text_color, 0);
-    lv_label_set_text(battery_label, LV_SYMBOL_BATTERY_FULL);
-    lv_obj_align(battery_label, LV_ALIGN_RIGHT_MID, LV_PCT(-4), 0);
+    lv_label_set_text(battery_label, LV_SYMBOL_BATTERY_FULL); // 电池满格符号
+    lv_obj_align(battery_label, LV_ALIGN_RIGHT_MID, LV_PCT(-4), 0); // 右侧居中
 
+    // ========== 创建状态文字标签 ==========
     lv_obj_t *status_label = lv_label_create(status_bar);
     lv_obj_set_style_text_font(status_label, common_styles->theme.text_font, 0);
     lv_obj_set_style_text_color(status_label, common_styles->theme.status_bar_text_color, 0);
-    lv_label_set_text(status_label, "启动中");
-    lv_obj_align(status_label, LV_ALIGN_CENTER, 0, 0);
+    lv_label_set_text(status_label, "启动中"); // 初始状态文字
+    lv_obj_align(status_label, LV_ALIGN_CENTER, 0, 0); // 居中对齐
 
+    // ========== 创建表情符号标签 ==========
     lv_obj_t *emotion_label = lv_label_create(content);
     lv_obj_set_style_text_color(emotion_label, common_styles->theme.content_text_color, 0);
     lv_obj_set_style_text_font(emotion_label, common_styles->theme.emoji_font, 0);
     lv_obj_align(emotion_label, LV_ALIGN_CENTER, 0, LV_PCT(-20));
     lv_label_set_text(emotion_label, "😶");
 
+    // ========== 创建对话文字标签 ==========
     lv_obj_t *text_label = lv_label_create(content);
     lv_obj_set_style_text_color(text_label, common_styles->theme.content_text_color, 0);
     lv_obj_set_style_text_font(text_label, common_styles->theme.text_font, 0);
@@ -290,7 +337,7 @@ void ui_show_notification(const char *title, const char *message, uint32_t timeo
     }
 
     lv_obj_t *screen = lv_screen_active();
-    common_data_t* common_data = lv_obj_get_user_data(screen);
+    common_data_t *common_data = lv_obj_get_user_data(screen);
     lv_obj_t *noti_bg = lv_obj_create(screen);
     lv_obj_set_size(noti_bg, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(noti_bg, lv_color_black(), 0);
